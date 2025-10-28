@@ -1,0 +1,100 @@
+# MAS-Planning Multi-Agent System Docker Compose Configuration
+# Complete deployment setup for development and production environments
+
+services:
+  # Main MAS-Planning Application
+  mas-planning:
+    build:
+      context: .
+      dockerfile: ${DOCKERFILE:-Dockerfile}
+    container_name: ${CONTAINER_NAME:-mas-planning-app}
+    restart: unless-stopped
+
+    ports:
+      - "${HOST_PORT:-9000}:9000"
+
+    env_file:
+      - .env
+
+    volumes:
+      # For development hot-reload (comment out for production)
+      - ./:/app
+      # Service account for Google Cloud authentication
+      - ./service-account.json:/app/service-account.json:ro
+      # Logs and data persistence
+      - ${LOG_VOLUME:-./logs}:/app/logs
+      - ./data:/app/data
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    depends_on:
+      - redis
+
+    networks:
+      - mas-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-10m}"
+        max-file: "${LOG_MAX_FILE:-5}"
+
+    # Resource limits (adjust based on your server capacity)
+    deploy:
+      resources:
+        limits:
+          cpus: '${CPU_LIMIT:-2.0}'
+          memory: ${MEMORY_LIMIT:-2G}
+        reservations:
+          cpus: '${CPU_RESERVATION:-1.0}'
+          memory: ${MEMORY_RESERVATION:-1G}
+
+  # Redis Cache Service (for conversation history)
+  redis:
+    image: redis:7-alpine
+    container_name: mas-redis-cache
+    restart: unless-stopped
+
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+    volumes:
+      - redis_data:/data
+
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+
+    networks:
+      - mas-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+
+# Network configuration
+networks:
+  mas-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
+
+# Volumes for persistent storage
+volumes:
+  redis_data:
+    driver: local
+  mas_logs:
+    driver: local

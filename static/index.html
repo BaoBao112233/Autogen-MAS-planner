@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAS Planning - Chat Demo</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-robot"></i> MAS Planning Chat Demo</h1>
+            <p>Demo endpoint /ai/chat/text với tính năng Text-to-Speech</p>
+        </header>
+
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="message bot-message">
+                    <div class="message-content">
+                        <i class="fas fa-robot"></i>
+                        <div class="text">
+                            Xin chào! Tôi là trợ lý AI của bạn. Hãy nhập tin nhắn để bắt đầu trò chuyện.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <input type="text" id="messageInput" placeholder="Nhập tin nhắn của bạn..." />
+                    <button id="sendButton" onclick="sendMessage()">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                
+                <div class="config-panel">
+                    <div class="config-row">
+                        <label for="sessionId">Session ID:</label>
+                        <input type="text" id="sessionId" value="demo-session-001" />
+                    </div>
+                    <div class="config-row">
+                        <label for="conversationId">Conversation ID:</label>
+                        <input type="text" id="conversationId" value="demo-conv-001" />
+                    </div>
+                    <div class="config-row">
+                        <label for="token">Token:</label>
+                        <input type="text" id="token" value="demo-token" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading indicator -->
+        <div class="loading" id="loading" style="display: none;">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Đang xử lý...</span>
+        </div>
+    </div>
+
+    <!-- Audio Player Modal -->
+    <div class="modal" id="audioModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-volume-up"></i> Audio Response</h3>
+                <button class="close-btn" onclick="closeAudioModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <audio controls id="audioPlayer" style="width: 100%;">
+                    Your browser does not support the audio element.
+                </audio>
+                <div class="audio-controls">
+                    <button id="downloadBtn" class="download-btn">
+                        <i class="fas fa-download"></i> Download Audio
+                    </button>
+                    <button onclick="playAudio()" class="play-btn">
+                        <i class="fas fa-play"></i> Play Again
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
