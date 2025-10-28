@@ -16,12 +16,17 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Copy requirements file first for Docker layer caching
-COPY requirements-dev.txt .
+# Install Poetry
+RUN pip install --no-cache-dir poetry==1.8.3
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir --use-pep517 -r requirements-dev.txt
+# Copy Poetry files first for Docker layer caching
+COPY pyproject.toml poetry.lock ./
+
+# Configure Poetry
+RUN poetry config virtualenvs.create false
+
+# Install Python dependencies using Poetry
+RUN poetry install --no-dev --no-interaction --no-ansi
 
 # Copy source code
 COPY . .

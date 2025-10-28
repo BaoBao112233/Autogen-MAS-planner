@@ -4,6 +4,7 @@ import json
 import os
 import io
 import tempfile
+import time
 from datetime import datetime
 from fastapi import APIRouter, Depends, BackgroundTasks, File, UploadFile, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -15,6 +16,7 @@ import traceback
 from langfuse import Langfuse
 
 from template.agent.manager import ManagerAgent
+from template.utils.logging_utils import log_execution_time, log_with_traceback, setup_detailed_logging
 
 # Session cache to store plan options for plan selection
 session_cache = TTLCache(maxsize=1000, ttl=3600)  # 1 hour TTL
@@ -31,25 +33,28 @@ from template.schemas.model import (
 )
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',  # format thời gian
-)
+setup_detailed_logging()
 logger = logging.getLogger(__name__)
 
 # Initialize Langfuse
-langfuse = Langfuse(
-    public_key=env.LANGFUSE_PUBLIC_KEY,
-    secret_key=env.LANGFUSE_SECRET_KEY,
-    host=env.LANGFUSE_HOST
-)
+try:
+    langfuse = Langfuse(
+        public_key=env.LANGFUSE_PUBLIC_KEY,
+        secret_key=env.LANGFUSE_SECRET_KEY,
+        host=env.LANGFUSE_HOST
+    )
+    logger.info("✅ Langfuse initialized successfully")
+except Exception as e:
+    logger.warning(f"⚠️  Langfuse initialization failed: {e}. Continuing without Langfuse tracking.")
+    langfuse = None
 
 # ElevenLabs configuration
 ELEVENLABS_API_KEY = env.ELEVENLABS_API_KEY
 ELEVENLABS_BASE_URL = env.ELEVENLABS_BASE_URL  
 DEFAULT_VOICE_ID = env.ELEVENLABS_VOICE_ID
 
+@log_execution_time
+@log_with_traceback
 async def text_to_speech(text: str) -> bytes:
     """Convert text to speech using ElevenLabs API"""
     url = f"{env.ELEVENLABS_BASE_URL}/text-to-speech/{env.ELEVENLABS_VOICE_ID}"
@@ -73,6 +78,8 @@ async def text_to_speech(text: str) -> bytes:
             raise HTTPException(status_code=response.status_code, detail="Failed to generate speech")
         return response.content
 
+@log_execution_time
+@log_with_traceback
 async def speech_to_text(audio_file: UploadFile) -> str:
     """Convert speech to text using ElevenLabs API"""
     # Save uploaded file temporarily
@@ -113,23 +120,21 @@ cache = TTLCache(maxsize=500, ttl=300)
 
 
 @AiRouter.post("/chat/text", response_model=ChatResponse)
+@log_execution_time
+@log_with_traceback
 async def chat_text(request: ChatRequestAPI, background_tasks: BackgroundTasks):
     """Process a text chat message and return response with audio file"""
     try:
-        # Lấy prompt từ file JSON nếu có chatId
+        start_time = time.time()
         logger.info(f'⚙️  sessionId: {request.sessionId} | message: {request.message}')
         
-        agent = ToolAgent(
+        agent = ManagerAgent(
             temperature=0.2,
             model=env.MODEL_NAME,
             verbose=True,
-            # session_id=request.sessionId,  # Pass session_id for chat history
-            # conversation_id=request.conversationId
+            session_id=request.sessionId,
+            conversation_id=request.conversationId
         )
-
-        logger.info("🔄 Initializing ToolAgent MCP tools...")
-        await agent.init_async()
-        logger.info(f"✅ ToolAgent initialized with {len(agent.tools)} MCP tools")
 
         # Check if this is a plan selection and retrieve cached plan options
         session_key = f"{request.sessionId}_{request.conversationId}"   
@@ -139,14 +144,18 @@ async def chat_text(request: ChatRequestAPI, background_tasks: BackgroundTasks):
         context = {}
         if cached_plans:
             context['cached_plan_options'] = cached_plans
+            logger.info(f"📋 Found cached plans for session {session_key}")
         
         input_data = {
-            "input": request.message,
+            "message": request.message,
             "token": request.token
         }
         
-                # Tool Agent handles all routing internally
-        response = await agent.invoke(input_data, token=request.token, context=context)
+        # Manager Agent handles all routing internally
+        invoke_start = time.time()
+        response = agent.invoke(input_data, context=context)
+        invoke_time = time.time() - invoke_start
+        logger.info(f"🔧 ManagerAgent invoke completed in {invoke_time:.2f}s")
 
         # Store plan options in cache if response contains them
         if 'plan_options' in response:
@@ -194,27 +203,28 @@ async def chat_text(request: ChatRequestAPI, background_tasks: BackgroundTasks):
         error_msg = f"Error processing chat request: {str(e)}"
         logger.error(error_msg, exc_info=True)
         # Log to Langfuse
-        try:
-            span = langfuse.start_span(name="Chat Text API Error")
-            span.update(
-                input={
-                    "sessionId": request.sessionId,
-                    "conversationId": request.conversationId,
-                    "message": request.message[:100] + "..." if len(request.message) > 100 else request.message,
-                    "token": request.token[:10] + "..." if request.token else None
-                },
-                output={
-                    "error": str(e),
-                    "traceback": traceback.format_exc()
-                },
-                metadata={
-                    "endpoint": "/ai/chat/text",
-                    "error_type": type(e).__name__
-                }
-            )
-            span.end()
-        except Exception as trace_e:
-            logger.error(f"Failed to send trace to Langfuse: {trace_e}")
+        if langfuse:
+            try:
+                span = langfuse.start_span(name="Chat Text API Error")
+                span.update(
+                    input={
+                        "sessionId": request.sessionId,
+                        "conversationId": request.conversationId,
+                        "message": request.message[:100] + "..." if len(request.message) > 100 else request.message,
+                        "token": request.token[:10] + "..." if request.token else None
+                    },
+                    output={
+                        "error": str(e),
+                        "traceback": traceback.format_exc()
+                    },
+                    metadata={
+                        "endpoint": "/ai/chat/text",
+                        "error_type": type(e).__name__
+                    }
+                )
+                span.end()
+            except Exception as trace_e:
+                logger.error(f"Failed to send trace to Langfuse: {trace_e}")
         return ChatResponse(
             sessionId=request.sessionId,
             response="Xin lỗi, đã có lỗi xảy ra khi xử lý yêu cầu của bạn. Vui lòng thử lại.",

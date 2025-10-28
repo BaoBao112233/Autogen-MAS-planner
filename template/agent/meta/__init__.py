@@ -1,10 +1,11 @@
-from template.agent import AutoGenAgent, create_vertex_llm_config
+from template.agent import BaseAgent
 from template.agent.meta.state import AgentState
 from template.message.message import HumanMessage, SystemMessage
 from template.message.converter import convert_messages_list
 from template.agent.meta.utils import extract_from_xml
 from template.agent.meta.prompt import META_PROMPT
 from autogen import AssistantAgent, UserProxyAgent
+from template.agent.autogen_config import create_autogen_agent, create_user_proxy_agent
 
 from termcolor import colored
 import logging
@@ -16,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class MetaAgent(AutoGenAgent):
+class MetaAgent:
     def __init__(self,
                  tools: list = [],
                  model: str = "gemini-2.5-pro",
@@ -24,18 +25,23 @@ class MetaAgent(AutoGenAgent):
                  max_iteration: int = 10,
                  json_mode: bool = False,
                  verbose: bool = False):
-        super().__init__(
-            name="Meta Agent",
-            system_message=META_PROMPT,
-            model=model,
-            temperature=temperature
-        )
-
+        self.name = "Meta Agent"
+        self.model = model
+        self.temperature = temperature
         self.tools = tools
         self.max_iteration = max_iteration
         self.json_mode = json_mode
         self.verbose = verbose
         self.iteration = 0
+
+        # Create AutoGen agent using the new configuration
+        self.agent = create_autogen_agent(
+            name=self.name,
+            system_message=META_PROMPT,
+            model=model,
+            temperature=temperature,
+            tools=tools
+        )
 
     def invoke(self, input_data) -> dict:
         """Main invoke method for MetaAgent"""
