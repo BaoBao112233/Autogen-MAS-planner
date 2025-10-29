@@ -20,21 +20,7 @@ class EnvironmentSettings(BaseSettings):
     GOOGLE_CLOUD_PROJECT: str
     GOOGLE_CLOUD_LOCATION: str = "us-east1"
     GOOGLE_APPLICATION_CREDENTIALS: str = "service-account.json"
-    # Chatbot settings
-    CHATBOTS_URL: str
-    CHATBOTS_INFO_URL: str
-    # CRM settings
-    CRM_API_URL: str
-    CRM_AUTH_TOKEN: str 
-    # Memory settings
-    MEMORY_API_URL: str
-    MEMORY_AUTH_TOKEN: str
-    # Database settings
-    POSTGRES_HOST: str
-    POSTGRES_PORT: int
-    POSTGRES_DB: str
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
+    # Redis settings
     REDIS_HOST: str
     REDIS_PORT: int
     REDIS_DB: int

@@ -81,6 +81,6 @@ def setup_detailed_logging():
         datefmt='%Y-%m-%d %H:%M:%S',
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler('debug.log', mode='a')
+            logging.FileHandler('logs/debug.log', mode='a')
         ]
     )
